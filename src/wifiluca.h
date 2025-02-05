@@ -1,0 +1,122 @@
+#ifndef _WIFILUCA_H_
+#define _WIFILUCA_H_
+
+const char* ssid = "Pfizer";//FASTWEB-BPDB15-Plus
+const char* password = "ciaociao";//UYJRHSG365
+
+JSONVar parsed;
+JSONVar invio;
+
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+
+void initWiFi();
+void initFS();
+void initWebSocket();
+void hostSite();
+void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
+void inviaDatiUtenti(JSONVar parsed);
+
+
+//_________________________________________________________________wifi
+void initWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("\nConnecting to WiFi ..");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+    delay(1000);
+  }
+  
+  Serial.println(WiFi.localIP());
+  delay(3000);
+}
+
+//_________________________________________________________________file sistem
+void initFS() {
+  if (!LittleFS.begin()) {
+    Serial.println("An error has occurred while mounting LittleFS");
+  } else {
+    Serial.println("LittleFS mounted successfully");
+  }
+}
+
+//_________________________________________________________________webSocket
+void initWebSocket() {
+  ws.onEvent(onEvent);
+  server.addHandler(&ws);
+}
+
+//________________________________________________________________host
+void hostSite(){
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(LittleFS, "/index.html", "text/html");
+  });
+
+  server.serveStatic("/", LittleFS, "/");
+
+  // Start server
+  server.begin();
+}
+
+//========== WebSocket Event Handler ==========
+void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+  switch (type) {
+    case WS_EVT_DATA: {
+      AwsFrameInfo *info = (AwsFrameInfo*)arg;
+      if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+        String message = String((char*)data).substring(0, len);
+
+        parsed = JSON.parse(message);
+
+        // Validate JSON parsing
+        if (JSON.typeof(parsed) == "undefined") {
+          Serial.println("JSON parsing failed!");
+          return;
+        }
+
+        // Check and update joystick data
+        if (parsed.hasOwnProperty("j1X") && parsed.hasOwnProperty("j1Y")) {
+          //yaw_desired_angle = String(parsed["j1X"]).toFloat();
+          input_THROTTLE = (String(parsed["j1Y"]).toFloat());
+        }
+
+        if (parsed.hasOwnProperty("j2X") && parsed.hasOwnProperty("j2Y")) {
+          roll_desired_angle = String(parsed["j2X"]).toFloat()/2;
+          pitch_desired_angle = String(parsed["j2Y"]).toFloat()/2;
+        }
+
+        //Print joystick values for debugging
+        //Serial.printf("Joystick1: (X: ?, Y: %.2f), Joystick2: (X: %.2f, Y: %.2f)\n",
+        //              input_THROTTLE, roll_desired_angle, pitch_desired_angle);
+        //Serial.println("Joystick1: (X: ?, Y: "+String(input_THROTTLE)+"), Joystick2: (X: "+String(roll_desired_angle)+", Y: "+String(pitch_desired_angle)+")");
+        
+        //inviaDatiUtenti();//invio dati all'utente
+      }
+      break;
+    }
+    case WS_EVT_CONNECT:
+      Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+      break;
+    case WS_EVT_DISCONNECT:
+      Serial.printf("WebSocket client #%u disconnected\n", client->id());
+      input_THROTTLE = 0;
+      roll_desired_angle = 0;
+      pitch_desired_angle = 0;
+      break;
+    case WS_EVT_PONG:
+    case WS_EVT_ERROR:
+      break;
+  }
+}
+
+void inviaDatiUtenti(JSONVar parsed){
+  String jsonString = JSON.stringify(parsed);
+  //Serial.print(jsonString+"\n");
+  //jsonString = "{";
+  
+  ws.textAll(jsonString);
+  //ws.binaryAll((uint8_t*)jsonString.c_str(), jsonString.length());
+}
+
+#endif
