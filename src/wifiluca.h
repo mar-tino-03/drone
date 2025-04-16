@@ -5,7 +5,6 @@ const char* ssid = "Pfizer";//FASTWEB-BPDB15-Plus
 const char* password = "ciaociao";//UYJRHSG365
 
 JSONVar parsed;
-JSONVar invio;
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -29,7 +28,6 @@ void initWiFi() {
   }
   
   Serial.println(WiFi.localIP());
-  delay(3000);
 }
 
 //_________________________________________________________________file sistem
@@ -76,20 +74,34 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
         }
 
         // Check and update joystick data
-        if (parsed.hasOwnProperty("j1X") && parsed.hasOwnProperty("j1Y")) {
-          //yaw_desired_angle = String(parsed["j1X"]).toFloat();
-          input_THROTTLE = (String(parsed["j1Y"]).toFloat());
+        if (parsed.hasOwnProperty("j1X")) {
+          yaw_desired_angle_dot = String((const char*)parsed["j1X"]).toFloat();
+        }
+        if(parsed.hasOwnProperty("j1Y")){
+          throttle_desired = (String((const char*)parsed["j1Y"]).toFloat()) * 4;
+        }
+        if (parsed.hasOwnProperty("j2X")) {
+          roll_desired_angle = String((const char*)parsed["j2X"]).toFloat();
+        }
+        if(parsed.hasOwnProperty("j2Y")){
+          pitch_desired_angle = String((const char*)parsed["j2Y"]).toFloat();
         }
 
-        if (parsed.hasOwnProperty("j2X") && parsed.hasOwnProperty("j2Y")) {
-          roll_desired_angle = String(parsed["j2X"]).toFloat()/2;
-          pitch_desired_angle = String(parsed["j2Y"]).toFloat()/2;
+        if(parsed.hasOwnProperty("input1")){
+          Serial.println(parsed["input1"]);
+          twoX_kp = String((const char*)parsed["input1"]).toFloat();
+        }else if(parsed.hasOwnProperty("input2")){
+          Serial.println(parsed["input2"]);
+          twoX_kd = String((const char*)parsed["input2"]).toFloat();
+        }else if(parsed.hasOwnProperty("input3")){
+          Serial.println(parsed["input3"]);
+          yaw_kp = String((const char*)parsed["input3"]).toFloat();
         }
 
         //Print joystick values for debugging
         //Serial.printf("Joystick1: (X: ?, Y: %.2f), Joystick2: (X: %.2f, Y: %.2f)\n",
         //              input_THROTTLE, roll_desired_angle, pitch_desired_angle);
-        //Serial.println("Joystick1: (X: ?, Y: "+String(input_THROTTLE)+"), Joystick2: (X: "+String(roll_desired_angle)+", Y: "+String(pitch_desired_angle)+")");
+        Serial.println("Joystick1: (X: ?, Y: "+String(throttle_desired)+"), Joystick2: (X: "+String(roll_desired_angle)+", Y: "+String(pitch_desired_angle)+")");
         
         //inviaDatiUtenti();//invio dati all'utente
       }
@@ -100,7 +112,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
       break;
     case WS_EVT_DISCONNECT:
       Serial.printf("WebSocket client #%u disconnected\n", client->id());
-      input_THROTTLE = 0;
+      throttle_desired = 0;
       roll_desired_angle = 0;
       pitch_desired_angle = 0;
       break;
