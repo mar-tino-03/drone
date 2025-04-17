@@ -152,7 +152,7 @@ void setup() {
 
   pinMode(PINBAT, INPUT);
 
-  Serial.begin(500000);
+  Serial.begin(115200);
   delay(2000);
 
   Wire.begin();
