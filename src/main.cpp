@@ -21,12 +21,12 @@ float Vbat;
 float pitch_PID,roll_PID,yaw_PID;
 float roll_error, roll_previous_error, pitch_error, pitch_previous_error, yaw_error;
 float roll_pid_p, roll_pid_d, roll_pid_i, pitch_pid_p, pitch_pid_i, pitch_pid_d, yaw_pid_p, yaw_pid_i, yaw_pid_d;
-float twoX_kp = 0.35;
-float twoX_ki = 0.005;
-float twoX_kd = 90;
-float yaw_kp = 1;
+float twoX_kp = 0;
+float twoX_ki = 0;
+float twoX_kd = 1500;
+float yaw_kp = 0;
 float yaw_ki = 0;
-float yaw_kd = 0;
+float yaw_kd = 30000;
 
 float roll_desired_angle, pitch_desired_angle, yaw_desired_angle_dot, throttle_desired; 
 #define WINDUP 90

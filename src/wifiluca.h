@@ -95,7 +95,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
           twoX_kd = String((const char*)parsed["input2"]).toFloat();
         }else if(parsed.hasOwnProperty("input3")){
           Serial.println(parsed["input3"]);
-          yaw_kp = String((const char*)parsed["input3"]).toFloat();
+          yaw_kd = String((const char*)parsed["input3"]).toFloat();
         }
 
         //Print joystick values for debugging
