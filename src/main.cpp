@@ -37,7 +37,7 @@ float yaw_kd = 0;
 float twoX_dot_kp = 1500;
 float yaw_dot_kp = 30000;
 
-float roll_desired_angle, pitch_desired_angle, yaw_desired_angle, throttle_desired; 
+float roll_desired_angle, pitch_desired_angle, yaw_desired_angle, yaw_dot_input_desired_angle, throttle_desired; 
 float roll_dot_desired_angle, pitch_dot_desired_angle, yaw_dot_desired_angle;
 #define WINDUP 90
 #define FORCE_CONTROL 300
@@ -55,8 +55,19 @@ int motor_1, motor_2, motor_3, motor_4;
 #include <Arduino_JSON.h>
 #include "wifiluca.h"
 #include "esp_timer.h"
-
 esp_timer_handle_t timer_clock;
+
+#include <EEPROM.h>
+#define EEPROM_SIZE 64
+#define EEPROM_FLAG_ADDR 0
+#define EEPROM_OFFSET_X 4
+#define EEPROM_OFFSET_Y 8
+#define EEPROM_OFFSET_Z 12
+#define EEPROM_VALID_FLAG 123
+#define PESOOFSET 0.1  // Fattore di aggiornamento dell'EMA
+
+void caricaOffset(bool get);
+void uploadOffset(float newX, float newY, float newZ);
 
 
 
@@ -70,6 +81,7 @@ void IRAM_ATTR onTimer(void* arg) {
   angle_roll_output = mpu6050.getAngleX() + TAR_ROLL;
   angle_pitch_output = mpu6050.getAngleY() + TAR_PITCH;
   angle_yaw_output = mpu6050.getAngleZ();
+  if(abs(yaw_dot_input_desired_angle)>4) yaw_desired_angle += yaw_dot_input_desired_angle * elapsedTime;
 
   roll_error = roll_desired_angle - angle_roll_output;
   pitch_error = pitch_desired_angle - angle_pitch_output;
@@ -98,7 +110,7 @@ void IRAM_ATTR onTimer(void* arg) {
 
   roll_dot_error = roll_dot_desired_angle - angle_roll_output_dot;
   pitch_dot_error = pitch_dot_desired_angle - angle_pitch_output_dot;
-  yaw_dot_error = yaw_dot_desired_angle - angle_yaw_output_dot;
+  yaw_dot_error =  yaw_dot_desired_angle - angle_yaw_output_dot;
 
   roll_dot_pid_p = twoX_dot_kp*roll_dot_error;
   pitch_dot_pid_p = twoX_dot_kp*pitch_dot_error;
@@ -156,7 +168,7 @@ void IRAM_ATTR onTimer(void* arg) {
   //motor_3=0;
   //motor_4=0;
 
-  Serial.print("\tth: "+String(throttle_desired)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(angle_yaw_output));
+  Serial.print("\tth: "+String(throttle_desired)+"\tr:"+String(roll_desired_angle)+"\tp:"+String(pitch_desired_angle)+"\ty:"+String(yaw_desired_angle));
   Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
   Serial.print("\tVabt: "+String(Vbat));
   //Serial.print("\tt: "+String(elapsedTime*(float)1000000));
@@ -167,6 +179,9 @@ void IRAM_ATTR onTimer(void* arg) {
   ledcWrite(2, 1023-motor_3);
   ledcWrite(3, 1023-motor_4);
   
+
+  //writeFile(LittleFS, "/debug.txt", "!");
+  //readFile(LittleFS, "/debug.txt");
 }
 
 void setup() {
@@ -200,6 +215,7 @@ void setup() {
   mpu6050.begin();
   mpu6050.writeMPU6050(0x1A, 0x00); // filtro passa basso eliminato
   mpu6050.calcGyroOffsets(true);
+  caricaOffset(true);
 
   //extractMemory();
   //getGyroXoffset();
@@ -279,6 +295,44 @@ void loop() {
     invio["batteria"] = Vbat;
     inviaDatiUtenti(invio);
   }
+}
 
- // GestioneGiroscopio();
+void caricaOffset(bool get){//carica in variabili
+  EEPROM.begin(EEPROM_SIZE); // Inizializza EEPROM con una dimensione adeguata
+  
+  byte flag;
+  EEPROM.get(EEPROM_FLAG_ADDR, flag);
+
+  if (get && flag == EEPROM_VALID_FLAG) {
+    float offsetX;
+    float offsetY;
+    float offsetZ;
+    EEPROM.get(EEPROM_OFFSET_X, offsetX);
+    EEPROM.get(EEPROM_OFFSET_Y, offsetY);
+    EEPROM.get(EEPROM_OFFSET_Z, offsetZ);
+
+    offsetX = (float)PESOOFSET * mpu6050.getGyroXoffset() + (float)(1 - PESOOFSET) * offsetX;
+    offsetY = (float)PESOOFSET * mpu6050.getGyroYoffset() + (float)(1 - PESOOFSET) * offsetY;
+    offsetZ = (float)PESOOFSET * mpu6050.getGyroZoffset() + (float)(1 - PESOOFSET) * offsetZ;
+
+  
+    uploadOffset(offsetX, offsetY, offsetZ);
+  } else {
+    uploadOffset(mpu6050.getGyroXoffset(), mpu6050.getGyroYoffset(), mpu6050.getGyroZoffset());
+  }
+  EEPROM.end();
+}
+
+void uploadOffset(float newX, float newY, float newZ){
+    EEPROM.put(EEPROM_OFFSET_X, newX);
+    EEPROM.put(EEPROM_OFFSET_Y, newY);
+    EEPROM.put(EEPROM_OFFSET_Z, newZ);
+    EEPROM.put(EEPROM_FLAG_ADDR, EEPROM_VALID_FLAG);  // flag valido
+    Serial.println();
+    Serial.println("X : " + String(newX));
+    Serial.println("Y : " + String(newY));
+    Serial.println("Z : " + String(newZ));
+    mpu6050.setGyroOffsets(newX, newY, newZ);
+
+    EEPROM.commit();
 }

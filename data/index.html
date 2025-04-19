@@ -1,0 +1,44 @@
+
+<!--<link rel="stylesheet" type="text/css" href="style.css">-->
+<!--<script src="script.js"></script>-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precise Dual Joystick</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <div id="j1" class="joystick-container">
+        <div class="joystick"></div>
+    </div>
+    <br><br>    
+    <!--<div>
+        <p>connected: <label id="connected"></label></p>
+        <p>motor_1: <label id="motor_1"></label> motor_2: <label id="motor_2"></label></p>
+        <p>motor_3: <label id="motor_3"></label> motor_4: <label id="motor_4"></label></p>
+
+        <p>input_THROTTLE: <label id="input_THROTTLE"></label></p>
+        <p>roll_desired_angle: <label id="roll_desired_angle"></label></p>
+        <p>pitch_desired_angle: <label id="pitch_desired_angle"></label></p>
+    </div>-->
+    <div>
+        <input type="text" id="input1"><button onclick="input1()">input1</button><br>
+        <input type="text" id="input2"><button onclick="input2()">input2</button><br>
+        <input type="text" id="input3"><button onclick="input3()">input3</button><br>
+        <a href="debug.txt" download>Scarica il file .txt</a>
+
+        <p>connected: <label id="connected"></label></p>
+        <p>batteria: <label id="batteria"></label></p>
+        <button onclick="bloccaJ2Y()">blocca altitudine</button>
+    </div>
+    <br><br>
+    <div id="j2" class="joystick-container">
+        <div class="joystick"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

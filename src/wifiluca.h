@@ -50,6 +50,9 @@ void hostSite(){
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(LittleFS, "/index.html", "text/html");
   });
+  //server.on("/debug.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
+    //request->send(LittleFS, "/debug.txt", "text/plain");
+  //});
 
   server.serveStatic("/", LittleFS, "/");
 
@@ -75,16 +78,16 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
         // Check and update joystick data
         if (parsed.hasOwnProperty("j1X")) {
-          yaw_desired_angle += String((const char*)parsed["j1X"]).toFloat()/10;
+          yaw_dot_input_desired_angle = String((const char*)parsed["j1X"]).toFloat();
         }
         if(parsed.hasOwnProperty("j1Y")){
           throttle_desired = (String((const char*)parsed["j1Y"]).toFloat()) * 4;
         }
         if (parsed.hasOwnProperty("j2X")) {
-          roll_desired_angle = String((const char*)parsed["j2X"]).toFloat();
+          roll_desired_angle = String((const char*)parsed["j2X"]).toFloat();  //+-10
         }
         if(parsed.hasOwnProperty("j2Y")){
-          pitch_desired_angle = String((const char*)parsed["j2Y"]).toFloat();
+          pitch_desired_angle = String((const char*)parsed["j2Y"]).toFloat();  //+-10
         }
 
         if(parsed.hasOwnProperty("input1")){
@@ -129,6 +132,38 @@ void inviaDatiUtenti(JSONVar parsed){
   
   ws.textAll(jsonString);
   //ws.binaryAll((uint8_t*)jsonString.c_str(), jsonString.length());
+}
+
+void writeFile(fs::FS &fs, const char * path, const char * message){
+    Serial.printf("Writing file: %s\r\n", path);
+
+    File file = fs.open(path, FILE_WRITE);
+    if(!file){
+        Serial.println("- failed to open file for writing");
+        return;
+    }
+    if(file.print(message)){
+        Serial.println("- file written");
+    } else {
+        Serial.println("- write failed");
+    }
+    file.close();
+}
+
+void readFile(fs::FS &fs, const char * path){
+    Serial.printf("Reading file: %s\r\n", path);
+
+    File file = fs.open(path);
+    if(!file || file.isDirectory()){
+        Serial.println("- failed to open file for reading");
+        return;
+    }
+
+    Serial.println("- read from file:");
+    while(file.available()){
+        Serial.write(file.read());
+    }
+    file.close();
 }
 
 #endif

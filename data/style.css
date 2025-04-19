@@ -1,0 +1,36 @@
+body {
+  margin: 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 100vh;
+  background-color: #f0f0f0;
+}
+.joystick-container {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  background-color: #ddd;
+  border-radius: 50%;
+  touch-action: none;
+  overflow: hidden;
+}
+.joystick {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  background-color: #888;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  left: 50%;
+  top: 50%;
+}
+#log {
+  width: 50%;
+  height: 300px;
+  margin-top: 0px;
+  font-size: 10px;
+  color: #333;
+  padding: 10px;
+  overflow-y: scroll;
+}
