@@ -8,7 +8,8 @@
 #include <Wire.h>
 MPU6050 mpu6050(Wire); //MPU6050 mpu6050(Wire, 0.2, 0.8);
 
-float angle_pitch_output, angle_roll_output, angle_yaw_output;
+float angle_roll_output, angle_pitch_output, angle_yaw_output;
+float angle_roll_output_dot, angle_pitch_output_dot, angle_yaw_output_dot;
 
 unsigned long timer = 0;
 unsigned long Time = 0;
@@ -18,19 +19,28 @@ float elapsedTime;
 
 float Vbat;
 
+#define TAR_ROLL  + 1.72
+#define TAR_PITCH + 5.09
+
 float pitch_PID,roll_PID,yaw_PID;
 float roll_error, roll_previous_error, pitch_error, pitch_previous_error, yaw_error;
+float roll_dot_error, pitch_dot_error, yaw_dot_error;
 float roll_pid_p, roll_pid_d, roll_pid_i, pitch_pid_p, pitch_pid_i, pitch_pid_d, yaw_pid_p, yaw_pid_i, yaw_pid_d;
-float twoX_kp = 0;
+float roll_dot_pid_p, pitch_dot_pid_p, yaw_dot_pid_p;
+float twoX_kp = 15;
 float twoX_ki = 0;
-float twoX_kd = 1500;
-float yaw_kp = 0;
+float twoX_kd = 0;
+float yaw_kp = 10;
 float yaw_ki = 0;
-float yaw_kd = 30000;
+float yaw_kd = 0;
 
-float roll_desired_angle, pitch_desired_angle, yaw_desired_angle_dot, throttle_desired; 
+float twoX_dot_kp = 1500;
+float yaw_dot_kp = 30000;
+
+float roll_desired_angle, pitch_desired_angle, yaw_desired_angle, throttle_desired; 
+float roll_dot_desired_angle, pitch_dot_desired_angle, yaw_dot_desired_angle;
 #define WINDUP 90
-#define FORCE_CONTROL 150
+#define FORCE_CONTROL 300
 
 #define PWM_FREQ     20000
 #define PWM_BITS     10
@@ -57,15 +67,44 @@ void IRAM_ATTR onTimer(void* arg) {
   elapsedTime = (float)(Time - timer) / (float)1000000;
   timer = Time;
 
-  angle_roll_output = mpu6050.getAngleX();
-  angle_pitch_output = mpu6050.getAngleY();
+  angle_roll_output = mpu6050.getAngleX() + TAR_ROLL;
+  angle_pitch_output = mpu6050.getAngleY() + TAR_PITCH;
   angle_yaw_output = mpu6050.getAngleZ();
 
+  roll_error = roll_desired_angle - angle_roll_output;
+  pitch_error = pitch_desired_angle - angle_pitch_output;
+  yaw_error = yaw_desired_angle - angle_yaw_output;
 
-  roll_previous_error = roll_error;
-  pitch_previous_error = pitch_error;
+  roll_pid_p = twoX_kp*roll_error;
+  pitch_pid_p = twoX_kp*pitch_error;
+  yaw_pid_p = yaw_kp*yaw_error;
 
-  roll_error  = angle_roll_output  - roll_desired_angle;
+  roll_pid_i  = constrain(roll_pid_i + (twoX_ki * roll_error * elapsedTime * (float)1000), -WINDUP, WINDUP);
+  pitch_pid_i = constrain(pitch_pid_i + (twoX_ki * pitch_error * elapsedTime * (float)1000), -WINDUP, WINDUP);
+  yaw_pid_i   = constrain(yaw_pid_i + (yaw_ki * yaw_error * elapsedTime * (float)1000), -WINDUP, WINDUP);
+
+  //roll_pid_d = 0.7 * twoX_kd*((roll_error - roll_previous_error)/elapsedTime/(float)1000)  +  0.3 * roll_pid_d;
+  //pitch_pid_d = 0.7 * twoX_kd*((pitch_error - pitch_previous_error)/elapsedTime/(float)1000)  +  0.3 * pitch_pid_d;
+
+  angle_roll_output_dot = mpu6050.getGyroX();
+  angle_pitch_output_dot = mpu6050.getGyroY();
+  angle_yaw_output_dot = mpu6050.getGyroZ();
+
+  
+
+  roll_dot_desired_angle = roll_pid_p + roll_pid_i;
+  pitch_dot_desired_angle = pitch_pid_p + pitch_pid_i;
+  yaw_dot_desired_angle = yaw_pid_p + yaw_pid_i;
+
+  roll_dot_error = roll_dot_desired_angle - angle_roll_output_dot;
+  pitch_dot_error = pitch_dot_desired_angle - angle_pitch_output_dot;
+  yaw_dot_error = yaw_dot_desired_angle - angle_yaw_output_dot;
+
+  roll_dot_pid_p = twoX_dot_kp*roll_dot_error;
+  pitch_dot_pid_p = twoX_dot_kp*pitch_dot_error;
+  yaw_dot_pid_p = yaw_dot_kp*yaw_dot_error;
+
+  /*roll_error  = angle_roll_output  - roll_desired_angle;
   pitch_error = angle_pitch_output - pitch_desired_angle;  
   yaw_error   = mpu6050.getGyroZ()   - yaw_desired_angle_dot;  
     
@@ -82,17 +121,17 @@ void IRAM_ATTR onTimer(void* arg) {
 
   roll_pid_d = 0.7 * twoX_kd*(mpu6050.getGyroX())  +  0.3 * roll_pid_d;
   pitch_pid_d = 0.7 * twoX_kd*(mpu6050.getGyroY())  +  0.3 * pitch_pid_d;
-  yaw_pid_d = 0.7 * yaw_kd*(mpu6050.getGyroZ())  +  0.3 * yaw_pid_d;
+  yaw_pid_d = 0.7 * yaw_kd*(mpu6050.getGyroZ())  +  0.3 * yaw_pid_d;*/
 
-  roll_PID  = constrain(roll_pid_p + roll_pid_i + roll_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
-  pitch_PID = constrain(pitch_pid_p + pitch_pid_i + pitch_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
-  yaw_PID   = constrain(yaw_pid_p + yaw_pid_i + yaw_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
+  roll_PID  = constrain(roll_dot_pid_p /*+ roll_pid_i + roll_pid_d*/, -FORCE_CONTROL, FORCE_CONTROL);
+  pitch_PID = constrain(pitch_dot_pid_p /*+ pitch_pid_i + pitch_pid_d*/, -FORCE_CONTROL, FORCE_CONTROL);
+  yaw_PID   = constrain(yaw_dot_pid_p /*+ yaw_pid_i + yaw_pid_d*/, -FORCE_CONTROL, FORCE_CONTROL);
 
   if(throttle_desired > 10 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){
-    motor_1 = throttle_desired - roll_PID  - pitch_PID + yaw_PID;
-    motor_2 = throttle_desired + roll_PID  + pitch_PID + yaw_PID;
-    motor_3 = throttle_desired + roll_PID  - pitch_PID - yaw_PID;
-    motor_4 = throttle_desired - roll_PID  + pitch_PID - yaw_PID;
+    motor_1 = throttle_desired + roll_PID  + pitch_PID - yaw_PID;
+    motor_2 = throttle_desired - roll_PID  - pitch_PID - yaw_PID;
+    motor_3 = throttle_desired - roll_PID  + pitch_PID + yaw_PID;
+    motor_4 = throttle_desired + roll_PID  - pitch_PID + yaw_PID;
   }else{
     motor_1 = 0;
     motor_2 = 0;
@@ -120,7 +159,8 @@ void IRAM_ATTR onTimer(void* arg) {
   Serial.print("\tth: "+String(throttle_desired)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(angle_yaw_output));
   Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
   Serial.print("\tVabt: "+String(Vbat));
-  Serial.print("\tt: "+String(elapsedTime*(float)1000000)+"\n");
+  //Serial.print("\tt: "+String(elapsedTime*(float)1000000));
+  Serial.println();
 
   ledcWrite(0, 1023-motor_1);
   ledcWrite(1, 1023-motor_2);
@@ -207,7 +247,10 @@ void setup() {
   throttle_desired = 0;
   roll_desired_angle = 0;
   pitch_desired_angle = 0;
-  yaw_desired_angle_dot = 0;
+  yaw_desired_angle = 0;
+  roll_dot_desired_angle = 0;
+  pitch_dot_desired_angle = 0;
+  yaw_dot_desired_angle = 0;
 
   initWiFi();
   initFS();

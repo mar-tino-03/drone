@@ -75,7 +75,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
         // Check and update joystick data
         if (parsed.hasOwnProperty("j1X")) {
-          yaw_desired_angle_dot = String((const char*)parsed["j1X"]).toFloat();
+          yaw_desired_angle += String((const char*)parsed["j1X"]).toFloat()/10;
         }
         if(parsed.hasOwnProperty("j1Y")){
           throttle_desired = (String((const char*)parsed["j1Y"]).toFloat()) * 4;
@@ -92,10 +92,10 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
           twoX_kp = String((const char*)parsed["input1"]).toFloat();
         }else if(parsed.hasOwnProperty("input2")){
           Serial.println(parsed["input2"]);
-          twoX_kd = String((const char*)parsed["input2"]).toFloat();
+          twoX_ki = String((const char*)parsed["input2"]).toFloat();
         }else if(parsed.hasOwnProperty("input3")){
           Serial.println(parsed["input3"]);
-          yaw_kd = String((const char*)parsed["input3"]).toFloat();
+          yaw_kp = String((const char*)parsed["input3"]).toFloat();
         }
 
         //Print joystick values for debugging
