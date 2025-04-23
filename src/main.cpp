@@ -7,6 +7,8 @@
 #include <MPU6050_tockn.h>
 #include <Wire.h>
 MPU6050 mpu6050(Wire, 0.01f, 0.99f); //MPU6050 mpu6050(Wire, 0.2, 0.8);
+#include <MadgwickAHRS.h>
+Madgwick filter;
 
 float angle_roll_output, angle_pitch_output, angle_yaw_output;
 float angle_roll_output_dot, angle_pitch_output_dot, angle_yaw_output_dot;
@@ -83,11 +85,12 @@ void IRAM_ATTR onTimer(void* arg) {
   Time = micros();
 
   mpu6050.update();
+  filter.updateIMU(mpu6050.getGyroX(),  mpu6050.getGyroY(),  mpu6050.getGyroZ(), mpu6050.getAccX(), mpu6050.getAccY(), mpu6050.getAccZ());
   elapsedTime = (float)(Time - timer) / (float)1000000;
   timer = Time;
 
-  angle_roll_output = mpu6050.getAngleX() + TAR_ROLL;
-  angle_pitch_output = mpu6050.getAngleY() + TAR_PITCH;
+  angle_roll_output = filter.getRoll() + TAR_ROLL;
+  angle_pitch_output = filter.getPitch() + TAR_PITCH;
   angle_yaw_output = mpu6050.getAngleZ();
   if(abs(yaw_dot_input_desired_angle)>4) yaw_desired_angle += yaw_dot_input_desired_angle * 10 * elapsedTime;
 
@@ -233,6 +236,8 @@ void setup() {
   mpu6050.writeMPU6050(0x1A, 0x00); // filtro passa basso eliminato
   mpu6050.calcGyroOffsets(true);
   caricaOffset(true);
+
+  filter.begin(500);
 
   //extractMemory();
   //getGyroXoffset();

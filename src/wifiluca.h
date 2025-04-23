@@ -81,7 +81,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
         // Check and update joystick data
         if (parsed.hasOwnProperty("j1X")) {
-          yaw_dot_input_desired_angle = String((const char*)parsed["j1X"]).toFloat();
+          yaw_dot_input_desired_angle = - String((const char*)parsed["j1X"]).toFloat();
         }
         if(parsed.hasOwnProperty("j1Y")){
           throttle_desired = (String((const char*)parsed["j1Y"]).toFloat()) * 4;
