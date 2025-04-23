@@ -40,7 +40,7 @@ float yaw_dot_kp = 30000;
 float roll_desired_angle, pitch_desired_angle, yaw_desired_angle, yaw_dot_input_desired_angle, throttle_desired; 
 float roll_dot_desired_angle, pitch_dot_desired_angle, yaw_dot_desired_angle;
 #define WINDUP 90
-#define FORCE_CONTROL 300
+#define FORCE_CONTROL 500
 
 #define PWM_FREQ     20000
 #define PWM_BITS     10
@@ -98,15 +98,15 @@ void IRAM_ATTR onTimer(void* arg) {
   //roll_pid_d = 0.7 * twoX_kd*((roll_error - roll_previous_error)/elapsedTime/(float)1000)  +  0.3 * roll_pid_d;
   //pitch_pid_d = 0.7 * twoX_kd*((pitch_error - pitch_previous_error)/elapsedTime/(float)1000)  +  0.3 * pitch_pid_d;
 
-  angle_roll_output_dot = 0.7 * mpu6050.getGyroX() + 0.3 * angle_roll_output_dot;
-  angle_pitch_output_dot = 0.7 * mpu6050.getGyroY()+ 0.3 * angle_pitch_output_dot;
-  angle_yaw_output_dot = 0.7 * mpu6050.getGyroZ()  + 0.3 * angle_yaw_output_dot;
+  angle_roll_output_dot =  0.8 * mpu6050.getGyroX() + 0.2 * angle_roll_output_dot;
+  angle_pitch_output_dot = 0.8 * mpu6050.getGyroY() + 0.2 * angle_pitch_output_dot;
+  angle_yaw_output_dot =   0.8 * mpu6050.getGyroZ() + 0.2 * angle_yaw_output_dot;
 
   
 
-  roll_dot_desired_angle = roll_pid_p + roll_pid_i;
-  pitch_dot_desired_angle = pitch_pid_p + pitch_pid_i;
-  yaw_dot_desired_angle = yaw_pid_p + yaw_pid_i;
+  roll_dot_desired_angle = 0;//roll_pid_p + roll_pid_i;
+  pitch_dot_desired_angle = 0;//pitch_pid_p + pitch_pid_i;
+  yaw_dot_desired_angle = 0;//yaw_pid_p + yaw_pid_i;
 
   roll_dot_error = roll_dot_desired_angle - angle_roll_output_dot;
   pitch_dot_error = pitch_dot_desired_angle - angle_pitch_output_dot;
@@ -169,9 +169,11 @@ void IRAM_ATTR onTimer(void* arg) {
   //motor_4=0;
 
   Serial.print("\tth: "+String(throttle_desired)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(angle_yaw_output));
+  //Serial.print("\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot));
   Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
   Serial.print("\tVabt: "+String(Vbat));
-  //Serial.print("\tt: "+String(elapsedTime*(float)1000000));
+  //if(roll_dot_pid_p > FORCE_CONTROL || -FORCE_CONTROL > roll_dot_pid_p) Serial.print("\n\nerrore sat\n\n");
+  Serial.print("\tt: "+String(micros() - Time)); //840
   Serial.println();
 
   ledcWrite(0, 1023-motor_1);
