@@ -34,6 +34,8 @@ float yaw_kp = 3;
 float yaw_ki = 0;
 float yaw_kd = 0;
 
+bool modalita = false;
+
 float twoX_dot_kp = 1500;
 float yaw_dot_kp = 30000;
 
@@ -45,6 +47,13 @@ float roll_dot_desired_angle, pitch_dot_desired_angle, yaw_dot_desired_angle;
 #define PWM_FREQ     20000
 #define PWM_BITS     10
 int motor_1, motor_2, motor_3, motor_4;
+
+#define SIZE_DATA 1000          // save function
+String dati[SIZE_DATA];
+String dati_tot;
+int dati_i=0;
+bool writeInRam = false;
+bool writeInFile = false;
 
 #include <Arduino.h>
 #include <esp32-hal-ledc.h>
@@ -68,7 +77,6 @@ esp_timer_handle_t timer_clock;
 
 void caricaOffset(bool get);
 void uploadOffset(float newX, float newY, float newZ);
-
 
 
 void IRAM_ATTR onTimer(void* arg) {
@@ -104,9 +112,9 @@ void IRAM_ATTR onTimer(void* arg) {
 
   
 
-  roll_dot_desired_angle = 0;//roll_pid_p + roll_pid_i;
-  pitch_dot_desired_angle = 0;//pitch_pid_p + pitch_pid_i;
-  yaw_dot_desired_angle = 0;//yaw_pid_p + yaw_pid_i;
+  roll_dot_desired_angle = roll_pid_p + roll_pid_i;
+  pitch_dot_desired_angle = pitch_pid_p + pitch_pid_i;
+  yaw_dot_desired_angle = yaw_pid_p + yaw_pid_i;
 
   roll_dot_error = roll_dot_desired_angle - angle_roll_output_dot;
   pitch_dot_error = pitch_dot_desired_angle - angle_pitch_output_dot;
@@ -173,7 +181,7 @@ void IRAM_ATTR onTimer(void* arg) {
   Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
   Serial.print("\tVabt: "+String(Vbat));
   //if(roll_dot_pid_p > FORCE_CONTROL || -FORCE_CONTROL > roll_dot_pid_p) Serial.print("\n\nerrore sat\n\n");
-  Serial.print("\tt: "+String(micros() - Time)); //840
+  //Serial.print("\tt: "+String(micros() - Time)); //840
   Serial.println();
 
   ledcWrite(0, 1023-motor_1);
@@ -182,8 +190,15 @@ void IRAM_ATTR onTimer(void* arg) {
   ledcWrite(3, 1023-motor_4);
   
 
-  //writeFile(LittleFS, "/debug.txt", "!");
-  //readFile(LittleFS, "/debug.txt");
+  if(writeInRam){ //write in file.txt
+    dati[dati_i] = "t: "+String(Time/1000)+
+                  "\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
+                  "\tr: "+String(angle_roll_output)+"\tp: "+String(angle_pitch_output)+//"\ty: "+String(angle_yaw_output)+
+                  "\n";
+    if(dati_i < SIZE_DATA) dati_i++;
+  }
+
+  Serial.print("\tt: "+String(micros() - Time));
 }
 
 void setup() {
@@ -296,6 +311,16 @@ void loop() {
     JSONVar invio;
     invio["batteria"] = Vbat;
     inviaDatiUtenti(invio);
+  }
+
+  if(writeInFile == true){
+    for(int i=0; i<dati_i; i++){
+      dati_tot += dati[i];
+    }
+    writeFile(LittleFS, "/debug.txt", dati_tot.c_str());
+    dati_i = 0;
+    dati_tot = "";
+    writeInFile = false;
   }
 }
 

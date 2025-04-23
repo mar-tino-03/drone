@@ -28,7 +28,7 @@
         <input type="text" id="input1"><button onclick="input1()">input1</button><br>
         <input type="text" id="input2"><button onclick="input2()">input2</button><br>
         <input type="text" id="input3"><button onclick="input3()">input3</button><br>
-        <a href="debug.txt" download>Scarica il file .txt</a>
+        <button onclick="clearFile()">clear</button><button onclick="pauseStartWriteFile()" id="writeInFile">start</button><a href="debug.txt" download>Scarica il file .txt</a>
 
         <p>connected: <label id="connected"></label></p>
         <p>batteria: <label id="batteria"></label></p>
@@ -39,6 +39,6 @@
         <div class="joystick"></div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=3"></script>
 </body>
 </html>

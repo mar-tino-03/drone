@@ -16,6 +16,9 @@ void hostSite();
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
 void inviaDatiUtenti(JSONVar parsed);
 
+void writeFile(fs::FS &fs, const char * path, const char * message);
+void appendFile(fs::FS &fs, const char * path, const char * message);
+void readFile(fs::FS &fs, const char * path);
 
 //_________________________________________________________________wifi
 void initWiFi() {
@@ -78,18 +81,16 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
         // Check and update joystick data
         if (parsed.hasOwnProperty("j1X")) {
-          yaw_dot_input_desired_angle = String((const char*)parsed["j1X"]).toFloat(); //+-10
+          yaw_dot_input_desired_angle = String((const char*)parsed["j1X"]).toFloat();
         }
         if(parsed.hasOwnProperty("j1Y")){
           throttle_desired = (String((const char*)parsed["j1Y"]).toFloat()) * 4;
         }
         if (parsed.hasOwnProperty("j2X")) {
           roll_desired_angle = String((const char*)parsed["j2X"]).toFloat();  //+-10
-          roll_desired_angle = roll_desired_angle*2;
         }
         if(parsed.hasOwnProperty("j2Y")){
           pitch_desired_angle = String((const char*)parsed["j2Y"]).toFloat();  //+-10
-          pitch_desired_angle = pitch_desired_angle*2;
         }
 
         if(parsed.hasOwnProperty("input1")){
@@ -97,10 +98,20 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
           twoX_kp = String((const char*)parsed["input1"]).toFloat();
         }else if(parsed.hasOwnProperty("input2")){
           Serial.println(parsed["input2"]);
-          twoX_dot_kp = String((const char*)parsed["input2"]).toFloat();
+          twoX_ki = String((const char*)parsed["input2"]).toFloat();
         }else if(parsed.hasOwnProperty("input3")){
           Serial.println(parsed["input3"]);
           yaw_kp = String((const char*)parsed["input3"]).toFloat();
+        }
+        if(parsed.hasOwnProperty("blockAlt")){
+          modalita = (bool)parsed["blockAlt"];
+        }
+        if(parsed.hasOwnProperty("clearFile")){
+          writeFile(LittleFS, "/debug.txt", "");
+        }
+        if(parsed.hasOwnProperty("writeFile")){
+          writeInRam = (bool)parsed["writeFile"];
+          if(writeInRam == false) writeInFile = true;
         }
 
         //Print joystick values for debugging
@@ -148,6 +159,22 @@ void writeFile(fs::FS &fs, const char * path, const char * message){
         Serial.println("- file written");
     } else {
         Serial.println("- write failed");
+    }
+    file.close();
+}
+
+void appendFile(fs::FS &fs, const char * path, const char * message){
+    Serial.printf("Appending to file: %s\r\n", path);
+
+    File file = fs.open(path, FILE_APPEND);
+    if(!file){
+        Serial.println("- failed to open file for appending");
+        return;
+    }
+    if(file.print(message)){
+        Serial.println("- message appended");
+    } else {
+        Serial.println("- append failed");
     }
     file.close();
 }

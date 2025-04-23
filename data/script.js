@@ -35,6 +35,7 @@
     } 
 
     var altitudineBloccata = false;
+    var writeFile = false;
 
     //joystick
     class Joystick {
@@ -108,7 +109,12 @@
                     }; //(dx / maxDistance).toFixed(2)
                     if(this.joystickId == "j1"){
                         joystickData[`${this.joystickId}X`] = ((joystickX-75.0)/5).toFixed(2);
-                        joystickData[`${this.joystickId}Y`] = (255+(-2.55*(joystickY-25.0))).toFixed(2);
+                        if(!altitudineBloccata){
+                            joystickData[`${this.joystickId}Y`] = (255+(-2.55*(joystickY-25.0))).toFixed(2);
+                        }
+                        if(altitudineBloccata){
+                            joystickData[`${this.joystickId}Y`] = ((-1*(joystickY-75.0))/5).toFixed(2);
+                        }
                             //(dx / maxDistance).toFixed(2)
                     }else{
                         joystickData[`${this.joystickId}X`] = ((joystickX-75.0)/5).toFixed(2);
@@ -138,12 +144,17 @@
                     this.joystick.style.left = '50%';
                     this.joystick.style.top = '50%';   
                     
-                    var joystickData = {
-                        [`${this.joystickId}X`]: 0,
-                        [`${this.joystickId}Y`]: 0,
-                    };
+                    var joystickData = {}
+                    joystickData[`${this.joystickId}X`] = 0;
+                    joystickData[`${this.joystickId}Y`] = 0;
+                    
                     if(this.joystickId == "j1"){
                         this.joystick.style.top = '85%';
+
+                        if(altitudineBloccata){
+                            joystickData[`${this.joystickId}Y`] = 0;
+                            this.joystick.style.top = '50%';
+                        }
                     }
                     // Invia dati di reset
                     /*if(this.joystickId == "j1"){
@@ -168,10 +179,11 @@
                 this.joystick.style.top = '50%';
 
                 var joystickData = {
-                    ["j1Y"]: (127).toFixed(2)
+                    ["j1Y"]: 0,
+                    ["blockAlt"]: bloccato
                 };
 
-                document.getElementById('input1').value = joystickData["j1Y"];
+                
 
                 ws.send(JSON.stringify(joystickData));
             }else{
@@ -201,6 +213,23 @@
     }
     function input3(){
         var inputData = {['input3']: document.getElementById('input3').value};
+
+        ws.send(JSON.stringify(inputData));
+    }
+
+    function clearFile(){
+        var inputData = {['clearFile']: "1"};
+
+        ws.send(JSON.stringify(inputData));
+    }
+    function pauseStartWriteFile(){
+        writeFile = !writeFile;
+        if(writeFile){
+            document.getElementById('writeInFile').innerText = "pause";
+        }else{
+            document.getElementById('writeInFile').innerText = "start";
+        }
+        var inputData = {['writeFile']: writeFile};
 
         ws.send(JSON.stringify(inputData));
     }
