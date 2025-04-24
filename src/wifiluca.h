@@ -101,7 +101,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
           twoX_ki = String((const char*)parsed["input2"]).toFloat();
         }else if(parsed.hasOwnProperty("input3")){
           Serial.println(parsed["input3"]);
-          yaw_kp = String((const char*)parsed["input3"]).toFloat();
+          twoX_kd = String((const char*)parsed["input3"]).toFloat();
         }
         if(parsed.hasOwnProperty("blockAlt")){
           modalita = (bool)parsed["blockAlt"];
@@ -111,6 +111,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
         }
         if(parsed.hasOwnProperty("writeFile")){
           writeInRam = (bool)parsed["writeFile"];
+          startTime = millis();
           if(writeInRam == false) writeInFile = true;
         }
 
