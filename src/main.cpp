@@ -27,10 +27,10 @@ float pitch_PID,roll_PID,yaw_PID;
 float roll_error, roll_previous_error, pitch_error, pitch_previous_error, yaw_error;
 float roll_dot_error, pitch_dot_error, yaw_dot_error;
 float roll_pid_p, roll_pid_d, roll_pid_i, pitch_pid_p, pitch_pid_i, pitch_pid_d, yaw_pid_p, yaw_pid_i, yaw_pid_d;
-float twoX_kp = 7;
+float twoX_kp = 12;
 float twoX_ki = 0;
 float twoX_kd = 0;
-float yaw_kp = 3;
+float yaw_kp = 6;
 float yaw_ki = 0;
 float yaw_kd = 0;
 
@@ -41,7 +41,7 @@ float roll_dot_pid_p, roll_dot_pid_d, roll_dot_pid_i, pitch_dot_pid_p, pitch_dot
 float twoX_dot_kp = 30;
 float twoX_dot_ki = 0.05;
 float twoX_dot_kd = 0.05;
-float yaw_dot_kp = 40;  // migliorabile
+float yaw_dot_kp = 60;  // migliorabile
 float yaw_dot_ki = 0;
 float yaw_dot_kd = 0;
 
@@ -49,8 +49,13 @@ bool modalita = false;
 
 float roll_desired_angle, pitch_desired_angle, yaw_desired_angle, yaw_dot_input_desired_angle, throttle_desired; 
 float roll_dot_desired_angle, pitch_dot_desired_angle, yaw_dot_desired_angle;
-#define WINDUP 90
 #define FORCE_CONTROL 400
+#define FORCE_CONTROL_TWOX 100
+#define FORCE_CONTROL_YAW 100
+#define FORCE_CONTROL_TWOX_DOT 400
+#define FORCE_CONTROL_YAW_DOT 400
+
+#define WINDUP 90
 
 #define PWM_FREQ     1000
 #define PWM_BITS     10
@@ -126,9 +131,9 @@ void IRAM_ATTR onTimer(void* arg) {
   
   //___________________________________________________________________ pid velocità angolari
   
-  roll_dot_desired_angle = roll_pid_p + roll_pid_i + roll_pid_d;
-  pitch_dot_desired_angle = pitch_pid_p + pitch_pid_i + pitch_pid_d;
-  yaw_dot_desired_angle = yaw_pid_p + yaw_pid_i + yaw_pid_d;
+  roll_dot_desired_angle = constrain(roll_pid_p + roll_pid_i + roll_pid_d, -FORCE_CONTROL_TWOX, FORCE_CONTROL_TWOX);
+  pitch_dot_desired_angle = constrain(pitch_pid_p + pitch_pid_i + pitch_pid_d, -FORCE_CONTROL_TWOX, FORCE_CONTROL_TWOX);
+  yaw_dot_desired_angle = constrain(yaw_pid_p + yaw_pid_i + yaw_pid_d, -FORCE_CONTROL_YAW, FORCE_CONTROL_YAW);
 
   roll_dot_previous_error = roll_dot_error;
   pitch_dot_previous_error = pitch_dot_error;
@@ -154,20 +159,25 @@ void IRAM_ATTR onTimer(void* arg) {
   //___________________________________________________________________ somma contributi
 
   if(ANELLO_VELOCITA){
-    roll_PID  = constrain(roll_dot_pid_p + roll_dot_pid_i + roll_dot_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
-    pitch_PID = constrain(pitch_dot_pid_p + pitch_dot_pid_i + pitch_dot_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
-    yaw_PID   = constrain(yaw_dot_pid_p + yaw_dot_pid_i + yaw_dot_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
+    roll_PID  = constrain(roll_dot_pid_p + roll_dot_pid_i + roll_dot_pid_d, -FORCE_CONTROL_TWOX_DOT, FORCE_CONTROL_TWOX_DOT);
+    pitch_PID = constrain(pitch_dot_pid_p + pitch_dot_pid_i + pitch_dot_pid_d, -FORCE_CONTROL_TWOX_DOT, FORCE_CONTROL_TWOX_DOT);
+    yaw_PID   = constrain(yaw_dot_pid_p + yaw_dot_pid_i + yaw_dot_pid_d, -FORCE_CONTROL_YAW_DOT, FORCE_CONTROL_YAW_DOT);
   }else{
     roll_PID  = constrain(roll_pid_p + roll_pid_i + roll_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
     pitch_PID = constrain(pitch_pid_p + pitch_pid_i + pitch_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
     yaw_PID   = constrain(yaw_pid_p + yaw_pid_i + yaw_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
   }
 
-  if(throttle_desired > 10 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){
+  if(throttle_desired > 110 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){
     motor_1 = throttle_desired + roll_PID  + pitch_PID - yaw_PID;
     motor_2 = throttle_desired - roll_PID  - pitch_PID - yaw_PID;
     motor_3 = throttle_desired - roll_PID  + pitch_PID + yaw_PID;
     motor_4 = throttle_desired + roll_PID  - pitch_PID + yaw_PID;
+  }else if(throttle_desired > 10 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){
+    motor_1 = throttle_desired + (+ roll_PID  + pitch_PID - yaw_PID) * (throttle_desired-10) / 100;
+    motor_2 = throttle_desired + (- roll_PID  - pitch_PID - yaw_PID) * (throttle_desired-10) / 100;
+    motor_3 = throttle_desired + (- roll_PID  + pitch_PID + yaw_PID) * (throttle_desired-10) / 100;
+    motor_4 = throttle_desired + (+ roll_PID  - pitch_PID + yaw_PID) * (throttle_desired-10) / 100;
   }else{
     motor_1 = 0;
     motor_2 = 0;
@@ -195,7 +205,8 @@ void IRAM_ATTR onTimer(void* arg) {
 
   Serial.print("\tth: "+String(throttle_desired)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(angle_yaw_output));
   //Serial.print("\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot));
-  Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
+  //Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
+  Serial.print("\tyd: "+String(angle_yaw_output_dot)+"\tpid_d: "+String(yaw_dot_pid_p)+"\tdes_d: "+String(yaw_dot_desired_angle));
   Serial.print("\tVabt: "+String(Vbat));
   //if(roll_dot_pid_p > FORCE_CONTROL || -FORCE_CONTROL > roll_dot_pid_p) Serial.print("\n\nerrore sat\n\n");
   //Serial.print("\tt: "+String(micros() - Time)); //840
@@ -209,8 +220,10 @@ void IRAM_ATTR onTimer(void* arg) {
 
   if(writeInRam && salta){ //write in file.txt
     dati[dati_i] = "t: "+String(Time/1000 - startTime)+
-                  "\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
-                  "\tr: "+String(angle_roll_output)+"\tp: "+String(roll_dot_desired_angle)+//"\ty: "+String(angle_yaw_output)+
+                  //"\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
+                  //"\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot)+
+                  "\tyd: "+String(angle_yaw_output_dot)+
+                  "\ty: "+String(angle_yaw_output)+"\tdes_dot: "+String(yaw_dot_desired_angle)+"\tdot_pid_p: "+String(yaw_dot_pid_p)+
                   "\n";
     if(dati_i < SIZE_DATA) dati_i++; 
   }
@@ -253,49 +266,6 @@ void setup() {
   caricaOffset(true);
 
   filter.begin(500);
-
-  //extractMemory();
-  //getGyroXoffset();
-  //setGyroOffsets(float x, float y, float z);
-  //saveMemory();
-  /* 
-  Wire.beginTransmission(0x68);
-    if (Wire.endTransmission() == 0) {
-      Serial.println("sensore trovato 1");
-    }else{
-      Wire.beginTransmission(0x69);
-        if (Wire.endTransmission() == 0) {
-          Serial.println("sensore trovato 2");
-        }else{
-          Serial.println("errore solito");
-        }
-    }
-  
-  Wire.beginTransmission(0x68);
-  Wire.write(0x6B);    // Seleziona il registro PWR_MGMT_1
-  Wire.write(0x80);    // Scrivi 0x80 per eseguire il reset
-  Wire.endTransmission();
-
-  Serial.println();
-  Serial.print("accX : ");Serial.print(mpu6050.getAccX());
-  Serial.print("\taccY : ");Serial.print(mpu6050.getAccY());
-  Serial.print("\taccZ : ");Serial.println(mpu6050.getAccZ());
-
-  Serial.print("gyroX : ");Serial.print(mpu6050.getGyroX());
-  Serial.print("\tgyroY : ");Serial.print(mpu6050.getGyroY());
-  Serial.print("\tgyroZ : ");Serial.println(mpu6050.getGyroZ());
-
-  Serial.print("accAngleX : ");Serial.print(mpu6050.getAccAngleX());
-  Serial.print("\taccAngleY : ");Serial.println(mpu6050.getAccAngleY());
-
-  Serial.print("gyroAngleX : ");Serial.print(mpu6050.getGyroAngleX());
-  Serial.print("\tgyroAngleY : ");Serial.print(mpu6050.getGyroAngleY());
-  Serial.print("\tgyroAngleZ : ");Serial.println(mpu6050.getGyroAngleZ());
-  
-  Serial.print("angleX : ");Serial.print(mpu6050.getAngleX());
-  Serial.print("\tangleY : ");Serial.print(mpu6050.getAngleY());
-  Serial.print("\tangleZ : ");Serial.println(mpu6050.getAngleZ()); */
-
   
   throttle_desired = 0;
   roll_desired_angle = 0;

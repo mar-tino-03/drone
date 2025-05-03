@@ -95,13 +95,13 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
         if(parsed.hasOwnProperty("input1")){
           Serial.println(parsed["input1"]);
-          twoX_kp = String((const char*)parsed["input1"]).toFloat();
+          yaw_kp = String((const char*)parsed["input1"]).toFloat();
         }else if(parsed.hasOwnProperty("input2")){
           Serial.println(parsed["input2"]);
-          twoX_ki = String((const char*)parsed["input2"]).toFloat();
+          yaw_dot_kp = String((const char*)parsed["input2"]).toFloat();
         }else if(parsed.hasOwnProperty("input3")){
           Serial.println(parsed["input3"]);
-          twoX_kd = String((const char*)parsed["input3"]).toFloat();
+          yaw_kp = String((const char*)parsed["input3"]).toFloat();
         }
         if(parsed.hasOwnProperty("blockAlt")){
           modalita = (bool)parsed["blockAlt"];
