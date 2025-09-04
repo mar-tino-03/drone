@@ -1,7 +1,7 @@
-#define PINMOT_1 0
+#define PINMOT_1 4
 #define PINMOT_2 2
 #define PINMOT_3 3
-#define PINMOT_4 4
+#define PINMOT_4 0
 #define PINBAT   1
 
 #include <MPU6050_tockn.h>
@@ -20,8 +20,8 @@ float elapsedTime;
 
 float Vbat;
 
-#define TAR_ROLL  + 1.7
-#define TAR_PITCH + 5.79
+#define TAR_ROLL  - 0.2
+#define TAR_PITCH + 0.1
 
 float pitch_PID,roll_PID,yaw_PID;
 float roll_error, roll_previous_error, pitch_error, pitch_previous_error, yaw_error;
@@ -220,10 +220,10 @@ void IRAM_ATTR onTimer(void* arg) {
 
   if(writeInRam && salta){ //write in file.txt
     dati[dati_i] = "t: "+String(Time/1000 - startTime)+
-                  //"\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
+                  "\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
                   //"\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot)+
-                  "\tyd: "+String(angle_yaw_output_dot)+
-                  "\ty: "+String(angle_yaw_output)+"\tdes_dot: "+String(yaw_dot_desired_angle)+"\tdot_pid_p: "+String(yaw_dot_pid_p)+
+                  //"\tyd: "+String(angle_yaw_output_dot)+
+                  "\ty: "+String(angle_yaw_output)+"\tdes_dot: "//+String(yaw_dot_desired_angle)+"\tdot_pid_p: "+String(yaw_dot_pid_p)+
                   "\n";
     if(dati_i < SIZE_DATA) dati_i++; 
   }
