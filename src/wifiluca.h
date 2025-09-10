@@ -81,29 +81,30 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
         // Check and update joystick data
         if (parsed.hasOwnProperty("j1X")) {
-          yaw_dot_input_desired_angle = - String((const char*)parsed["j1X"]).toFloat();
+          yaw_dot_input_desired_angle = - String((const char*)parsed["j1X"]).toFloat() * 3;
         }
         if(parsed.hasOwnProperty("j1Y")){
           throttle_desired = (String((const char*)parsed["j1Y"]).toFloat()) * 4;
         }
         if (parsed.hasOwnProperty("j2X")) {
-          roll_desired_angle = String((const char*)parsed["j2X"]).toFloat();  //+-10
+          roll_desired_angle = 0.8 * String((const char*)parsed["j2X"]).toFloat() + 0.2 * roll_desired_angle;  //+-10
         }
         if(parsed.hasOwnProperty("j2Y")){
-          pitch_desired_angle = String((const char*)parsed["j2Y"]).toFloat();  //+-10
+          pitch_desired_angle = 0.8 * String((const char*)parsed["j2Y"]).toFloat() + 0.2 * pitch_desired_angle;  //+-10
         }
 
         if(parsed.hasOwnProperty("input1")){
           Serial.println(parsed["input1"]);
-          yaw_kp = String((const char*)parsed["input1"]).toFloat();
+          twoX_kp = String((const char*)parsed["input1"]).toFloat();
         }else if(parsed.hasOwnProperty("input2")){
           Serial.println(parsed["input2"]);
-          yaw_dot_kp = String((const char*)parsed["input2"]).toFloat();
+          twoX_kd = String((const char*)parsed["input2"]).toFloat();
         }else if(parsed.hasOwnProperty("input3")){
           Serial.println(parsed["input3"]);
-          yaw_kp = String((const char*)parsed["input3"]).toFloat();
+          yaw_kd = String((const char*)parsed["input3"]).toFloat();
         }
         if(parsed.hasOwnProperty("blockAlt")){
+          Serial.println(parsed["blockAlt"]);
           modalita = (bool)parsed["blockAlt"];
         }
         if(parsed.hasOwnProperty("clearFile")){
