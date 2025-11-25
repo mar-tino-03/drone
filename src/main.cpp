@@ -4,14 +4,17 @@
 #define PINMOT_4 10
 #define PINBAT   1
 
-#include <MPU6050_tockn.h>
 #include <Wire.h>
-MPU6050 mpu6050(Wire, 0.02f, 0.98f); //MPU6050 mpu6050(Wire, 0.2, 0.8);
+#include <MPU6050.h>
+#define MPU6050_ADDR 0x69
+MPU6050 mpu(MPU6050_ADDR);
 #include <MadgwickAHRS.h>
 Madgwick filter;
 
+float acc_x, acc_y, acc_z;
 float angle_roll_output, angle_pitch_output, angle_yaw_output;
 float angle_roll_output_dot, angle_pitch_output_dot, angle_yaw_output_dot;
+float lastYaw;
 
 unsigned long Time = 0, Time_old = 0;
 unsigned long timeBatteria = 0;
@@ -21,17 +24,18 @@ float elapsedTime;
 
 float Vbat;
 
-#define TAR_ROLL  + 2.4
-#define TAR_PITCH + 0  // 1.6 senza cavo
+#define TAR_ROLL  - 5.40
+#define TAR_PITCH - 1.80
+#define TAR_YAW   - 180
 
 float pitch_PID,roll_PID,yaw_PID;
 float roll_error, roll_previous_error, pitch_error, pitch_previous_error, yaw_error;
 float roll_dot_error, pitch_dot_error, yaw_dot_error;
 float roll_pid_p, roll_pid_d, roll_pid_i, pitch_pid_p, pitch_pid_i, pitch_pid_d, yaw_pid_p, yaw_pid_i, yaw_pid_d;
-float twoX_kp = 10;
-float twoX_ki = 0;
+float twoX_kp = 5; //5
+float twoX_ki = 0.1;
 float twoX_kd = 0;
-float yaw_kp = 0; //10;
+float yaw_kp = 10; //10;
 float yaw_ki = 0;
 float yaw_kd = 0;
 
@@ -42,7 +46,7 @@ float roll_dot_pid_p, roll_dot_pid_d, roll_dot_pid_i, pitch_dot_pid_p, pitch_dot
 float twoX_dot_kp = 3;
 float twoX_dot_ki = 0;
 float twoX_dot_kd = 0;
-float yaw_dot_kp = 200;  // migliorabile
+float yaw_dot_kp = 200;
 float yaw_dot_ki = 0;
 float yaw_dot_kd = 0;
 
@@ -83,7 +87,7 @@ esp_timer_handle_t timer_pwm;
 esp_timer_handle_t timer_control;
 
 // Parametri PWM sfasato
-const uint32_t freqHz = 1000;   // 1 kHz
+const uint32_t freqHz = 100;   // 1 kHz
 const uint32_t period_us = 1000000 / freqHz; // 1000 µs
 const uint32_t phaseShift_us = period_us / 4; // 250 µs
 
@@ -143,24 +147,39 @@ void IRAM_ATTR onTimer_pwm(void* arg) {
 void IRAM_ATTR onTimer(void* arg) {
   Time = micros();
 
-  mpu6050.update();
-  filter.updateIMU(
-    mpu6050.getGyroX(),
-    mpu6050.getGyroY(),
-    mpu6050.getGyroZ(),
-    constrain(mpu6050.getAccX(), -250, 250),
-    constrain(mpu6050.getAccY(), -250, 250),
-    constrain(mpu6050.getAccZ(), -250, 250)
-  );
-  angle_roll_output_dot =  0.8 * mpu6050.getGyroX() + 0.2 * angle_roll_output_dot;
-  angle_pitch_output_dot = 0.8 * mpu6050.getGyroY() + 0.2 * angle_pitch_output_dot;
-  angle_yaw_output_dot =   0.8 * mpu6050.getGyroZ() + 0.2 * angle_yaw_output_dot;
+  int16_t ax, ay, az, gx, gy, gz;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+  angle_roll_output_dot =    gy / 131.0f; //avevo messo un filtro tempo fa
+  angle_pitch_output_dot =   gx / 131.0f;
+  angle_yaw_output_dot =   - gz / 131.0f;
+  acc_x =   (ay / 8192.0f );
+  acc_y =   (ax / 8192.0f );
+  acc_z = - (az / 8192.0f );
+  
   elapsedTime = (float)(Time - Time_old) * 1e-6f;
   Time_old = Time;
 
+  filter.updateIMU(
+    constrain(angle_roll_output_dot, -250, 250),
+    constrain(angle_pitch_output_dot, -250, 250),
+    constrain(angle_yaw_output_dot, -250, 250),
+    acc_x,
+    acc_y,
+    acc_z
+  );
+
   angle_roll_output = filter.getRoll() + TAR_ROLL;
   angle_pitch_output = filter.getPitch() + TAR_PITCH;
-  angle_yaw_output = mpu6050.getAngleZ();
+
+  float delta = filter.getYaw() + TAR_YAW - lastYaw;
+
+  // correggi salto
+  if (delta > 180.0f)   delta -= 360.0f;
+  if (delta < -180.0f)  delta += 360.0f;
+
+  angle_yaw_output += delta;
+  lastYaw = filter.getYaw() + TAR_YAW;
   //if(abs(yaw_dot_input_desired_angle)>4) yaw_desired_angle += yaw_dot_input_desired_angle * 10 * elapsedTime;
 
   //___________________________________________________________________ pid angoli
@@ -186,6 +205,7 @@ void IRAM_ATTR onTimer(void* arg) {
   
   roll_dot_desired_angle = constrain(roll_pid_p + roll_pid_i + roll_pid_d, -FORCE_CONTROL_TWOX, FORCE_CONTROL_TWOX);
   pitch_dot_desired_angle = constrain(pitch_pid_p + pitch_pid_i + pitch_pid_d, -FORCE_CONTROL_TWOX, FORCE_CONTROL_TWOX);
+  yaw_dot_desired_angle = abs(yaw_dot_input_desired_angle)>8 ? yaw_dot_input_desired_angle : 0;
   //yaw_dot_desired_angle = constrain(yaw_pid_p + yaw_pid_i + yaw_pid_d, -FORCE_CONTROL_YAW, FORCE_CONTROL_YAW);
   //yaw_dot_desired_angle = abs(yaw_dot_input_desired_angle)>4 ? yaw_dot_input_desired_angle : 0;
 
@@ -222,16 +242,16 @@ void IRAM_ATTR onTimer(void* arg) {
     yaw_PID   = constrain(yaw_pid_p + yaw_pid_i + yaw_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
   }
 
-  if(throttle_desired > 110 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){
-    motor_1 = throttle_desired + roll_PID  + pitch_PID - yaw_PID;
-    motor_2 = throttle_desired - roll_PID  - pitch_PID - yaw_PID;
-    motor_3 = throttle_desired - roll_PID  + pitch_PID + yaw_PID;
-    motor_4 = throttle_desired + roll_PID  - pitch_PID + yaw_PID;
+  if(throttle_desired > 10 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){ // oss: throttle_desired > 110
+    motor_1 = throttle_desired - roll_PID  - pitch_PID - yaw_PID;
+    motor_2 = throttle_desired + roll_PID  + pitch_PID - yaw_PID;
+    motor_3 = throttle_desired + roll_PID  - pitch_PID + yaw_PID;
+    motor_4 = throttle_desired - roll_PID  + pitch_PID + yaw_PID;
   }else if(throttle_desired > 10 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){
-    motor_1 = throttle_desired + (+ roll_PID  + pitch_PID - yaw_PID) * (throttle_desired-10) / 100;
-    motor_2 = throttle_desired + (- roll_PID  - pitch_PID - yaw_PID) * (throttle_desired-10) / 100;
-    motor_3 = throttle_desired + (- roll_PID  + pitch_PID + yaw_PID) * (throttle_desired-10) / 100;
-    motor_4 = throttle_desired + (+ roll_PID  - pitch_PID + yaw_PID) * (throttle_desired-10) / 100;
+    motor_1 = throttle_desired + (- roll_PID  - pitch_PID - yaw_PID) * (throttle_desired-10) / 100;
+    motor_2 = throttle_desired + (+ roll_PID  + pitch_PID - yaw_PID) * (throttle_desired-10) / 100;
+    motor_3 = throttle_desired + (+ roll_PID  - pitch_PID + yaw_PID) * (throttle_desired-10) / 100;
+    motor_4 = throttle_desired + (- roll_PID  + pitch_PID + yaw_PID) * (throttle_desired-10) / 100;
   }else{
     motor_1 = 0;
     motor_2 = 0;
@@ -258,13 +278,14 @@ void IRAM_ATTR onTimer(void* arg) {
   //motor_4=0;
   if(true){
     Serial.print("t: "+String(ciclo_ISR));
-    //Serial.print("\tax: "+String(mpu6050.getAccX())+"\tay: "+String(mpu6050.getAccY())+"\taz: "+String(mpu6050.getAccZ()));
-    Serial.print("\tth: "+String(throttle_desired)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(yaw_dot_input_desired_angle));
-    Serial.print("\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot));
-    //Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
+    Serial.print("\tmot_pid: "+String(roll_PID)+"\teri: "+String(roll_pid_i));
+    //Serial.print("\tax: "+String(acc_x)+"\tay: "+String(acc_y)+"\taz: "+String(acc_z));
+    Serial.print("\tth: "+String(roll_desired_angle)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(angle_yaw_output));
+    //Serial.print("\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot));
+    Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
     //Serial.print("\tyd: "+String(angle_yaw_output_dot)+"\tpid_d: "+String(yaw_dot_pid_p)+"\tdes_d: "+String(yaw_dot_desired_angle));
-    
-    Serial.print("\tVabt: "+String(Vbat));
+    //Serial.print("\ter: "+String(roll_error)+"\tep: "+String(pitch_error)+"\tey: "+String(yaw_error));
+    //Serial.print("\tVabt: "+String(Vbat));
     //if(roll_dot_pid_p > FORCE_CONTROL || -FORCE_CONTROL > roll_dot_pid_p) Serial.print("\n\nerrore sat\n\n");
     //Serial.print("\tt: "+String(micros() - Time)); //840
     Serial.println();
@@ -278,10 +299,10 @@ void IRAM_ATTR onTimer(void* arg) {
 
   if(writeInRam && salta){ //write in file.txt
     dati[dati_i] = "t: "+String(Time/1000 - startTime)+
-                  //"\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
-                  "\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot)+
+                  "\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
+                  "\tr: "+String(angle_roll_output)+"\tp: "+String(angle_pitch_output)+"\tyd: "+String(angle_yaw_output_dot)+
                   //"\tyd: "+String(angle_yaw_output_dot)+
-                  "\ty: "+String(angle_yaw_output)+//"\tdes_dot: "+String(yaw_dot_desired_angle)+"\tdot_pid_p: "+String(yaw_dot_pid_p)+
+                  //"\ty: "+String(angle_yaw_output)+//"\tdes_dot: "+String(yaw_dot_desired_angle)+"\tdot_pid_p: "+String(yaw_dot_pid_p)+
                   "\n";
     if(dati_i < SIZE_DATA) dati_i++; 
   }
@@ -314,11 +335,14 @@ void setup() {
   delay(2000);
 
   Wire.begin();
-  Wire.setClock(700000);
-  mpu6050.begin();
-  mpu6050.writeMPU6050(0x1A, 0x00); // filtro passa basso eliminato
-  mpu6050.calcGyroOffsets(true);
-  caricaOffset(true);
+  Wire.setClock(400000);
+  mpu.initialize();       // equivalente a begin()
+  delay(10);
+  mpu.setDLPFMode(3); // DLPF = 42 Hz mpu.setDLPFMode(0); disattivato
+  delay(10);
+  mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_4); // +-4g
+  mpu.CalibrateGyro(100);
+  //caricaOffset(true);
 
   filter.begin(500);
   
@@ -389,7 +413,7 @@ void loop() {
     writeInFile = false;
   }
 }
-
+/*
 void caricaOffset(bool get){//carica in variabili
   EEPROM.begin(EEPROM_SIZE); // Inizializza EEPROM con una dimensione adeguata
   
@@ -414,14 +438,26 @@ void caricaOffset(bool get){//carica in variabili
 
     }    
 
+    // forzo la mia calibrazione
+    //offsetX = 2.8220186;
+    //offsetY = 4.0885192;
+    //offsetZ = -0.1799488;
   
     uploadOffset(offsetX, offsetY, offsetZ);
+
+    Serial.print("\n\nX: ");
+    Serial.print(offsetX, 6);
+    Serial.print("\nY: ");
+    Serial.print(offsetY, 6);
+    Serial.print("\nZ: ");
+    Serial.print(offsetZ, 6);
+    Serial.print("\n\n");
   } else {
     uploadOffset(mpu6050.getGyroXoffset(), mpu6050.getGyroYoffset(), mpu6050.getGyroZoffset());
   }
   EEPROM.end();
 }
-
+/*
 void uploadOffset(float newX, float newY, float newZ){
     EEPROM.put(EEPROM_OFFSET_X, newX);
     EEPROM.put(EEPROM_OFFSET_Y, newY);
@@ -434,4 +470,4 @@ void uploadOffset(float newX, float newY, float newZ){
     mpu6050.setGyroOffsets(newX, newY, newZ);
 
     EEPROM.commit();
-}
+}*/
