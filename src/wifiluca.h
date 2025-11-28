@@ -23,6 +23,21 @@ void readFile(fs::FS &fs, const char * path);
 //_________________________________________________________________wifi
 void initWiFi() {
   WiFi.mode(WIFI_STA);
+
+  // --- NUOVA CONFIGURAZIONE CON IP STATICO ---
+
+  // 1. Definisci le informazioni della tua rete (da personalizzare!)
+  IPAddress local_IP(10, 32, 65, 150);  // L'IP fisso che hai scelto per l'ESP32
+  IPAddress gateway(10, 32, 65, 1);     // L'indirizzo del gateway (il tuo telefono)
+  IPAddress subnet(255, 255, 255, 0);   // La subnet mask
+
+  // 2. Applica la configurazione statica
+  // Questa funzione DEVE essere chiamata prima di WiFi.begin()
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+      Serial.println("Errore nella configurazione dell'IP statico!");
+      return; // Ferma l'esecuzione se la configurazione fallisce
+  }
+
   WiFi.begin(ssid, password);
   Serial.print("\nConnecting to WiFi ..");
   while (WiFi.status() != WL_CONNECTED) {
