@@ -76,6 +76,7 @@ boolean salta = true;
 #include <Arduino.h>
 #include <esp32-hal-ledc.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include "LittleFS.h"  //upload  [ctrl] + [shift] + p
