@@ -33,7 +33,7 @@ float roll_error, roll_previous_error, pitch_error, pitch_previous_error, yaw_er
 float roll_dot_error, pitch_dot_error, yaw_dot_error;
 float roll_pid_p, roll_pid_d, roll_pid_i, pitch_pid_p, pitch_pid_i, pitch_pid_d, yaw_pid_p, yaw_pid_i, yaw_pid_d;
 float twoX_kp = 5; //5
-float twoX_ki = 0.1;
+float twoX_ki = 0; //0.1
 float twoX_kd = 0;
 float yaw_kp = 10; //10;
 float yaw_ki = 0;
@@ -79,27 +79,23 @@ boolean salta = true;
 #include <ESPmDNS.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include "LittleFS.h"  //upload  [ctrl] + [shift] + p
+#include "LittleFS.h"  //upload  [ctrl] + [shift] + p    // pio run --target uploadfs
 #include <Arduino_JSON.h>
 #include "wifiluca.h"
 #include "esp_timer.h"
 #include "driver/gpio.h"
-esp_timer_handle_t timer_pwm;
 esp_timer_handle_t timer_control;
 
 // Parametri PWM sfasato
-const uint32_t freqHz = 100;   // 1 kHz
-const uint32_t period_us = 1000000 / freqHz; // 1000 µs
-const uint32_t phaseShift_us = period_us / 4; // 250 µs
+const uint32_t freqHz = 1000;   // 1 kHz
+const bool phase = false;
 
 hw_timer_t * timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
-volatile uint32_t tick = 0;
+#include "pwmtino.h"
 
-//#define PWM_FREQ     1000
-//#define PWM_BITS     10
-
+/*
 #include <EEPROM.h>
 #define EEPROM_SIZE 64
 #define EEPROM_FLAG_ADDR 0
@@ -107,42 +103,7 @@ volatile uint32_t tick = 0;
 #define EEPROM_OFFSET_Y 8
 #define EEPROM_OFFSET_Z 12
 #define EEPROM_VALID_FLAG 123
-#define PESOOFSET 0.1  // Fattore di aggiornamento dell'EMA
-
-void caricaOffset(bool get);
-void uploadOffset(float newX, float newY, float newZ);
-
-void IRAM_ATTR onTimer_pwm(void* arg) {
-  tick = micros();
-
-  uint32_t t = (tick % period_us); // fase attuale (0..period_us-1)
-
-  // Leggo i duty in maniera "atomica" per evitare race con l'altro timer/task
-  uint16_t m1, m2, m3, m4;
-  portENTER_CRITICAL_ISR(&timerMux);
-    m1 = (uint16_t)motor_1;
-    m2 = (uint16_t)motor_2;
-    m3 = (uint16_t)motor_3;
-    m4 = (uint16_t)motor_4;
-  portEXIT_CRITICAL_ISR(&timerMux);
-
-  // converto motor (0..1023) -> duty_us (0..period_us)
-  uint32_t duty1 = (uint32_t)m1 * period_us / 1023;
-  uint32_t duty2 = (uint32_t)m2 * period_us / 1023;
-  uint32_t duty3 = (uint32_t)m3 * period_us / 1023;
-  uint32_t duty4 = (uint32_t)m4 * period_us / 1023;
-
-  // applichiamo i phase shift in lettura del tempo
-  uint32_t t1 = t;
-  uint32_t t2 = (t + period_us - phaseShift_us) % period_us;
-  uint32_t t3 = (t + period_us - 2*phaseShift_us) % period_us;
-  uint32_t t4 = (t + period_us - 3*phaseShift_us) % period_us;
-
-  gpio_set_level((gpio_num_t)PINMOT_1, (t1 >= duty1) ? 1 : 0);
-  gpio_set_level((gpio_num_t)PINMOT_2, (t2 >= duty2) ? 1 : 0);
-  gpio_set_level((gpio_num_t)PINMOT_3, (t3 >= duty3) ? 1 : 0);
-  gpio_set_level((gpio_num_t)PINMOT_4, (t4 >= duty4) ? 1 : 0);
-}
+#define PESOOFSET 0.1   //Fattore di aggiornamento dell'EMA*/
 
 
 void IRAM_ATTR onTimer(void* arg) {
@@ -243,7 +204,7 @@ void IRAM_ATTR onTimer(void* arg) {
     yaw_PID   = constrain(yaw_pid_p + yaw_pid_i + yaw_pid_d, -FORCE_CONTROL, FORCE_CONTROL);
   }
 
-  if(throttle_desired > 10 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){ // oss: throttle_desired > 110
+  if(throttle_desired > 110 && abs(angle_roll_output)<110 && abs(angle_pitch_output)<110){
     motor_1 = throttle_desired - roll_PID  - pitch_PID - yaw_PID;
     motor_2 = throttle_desired + roll_PID  + pitch_PID - yaw_PID;
     motor_3 = throttle_desired + roll_PID  - pitch_PID + yaw_PID;
@@ -273,15 +234,14 @@ void IRAM_ATTR onTimer(void* arg) {
   motor_3 = constrain(motor_3, 0, 1023);
   motor_4 = constrain(motor_4, 0, 1023);
 
-  //motor_1=0;
-  //motor_2=0;
-  //motor_3=0;
-  //motor_4=0;
+  set_power(motor_1, motor_2, motor_3, motor_4);
+
+
   if(true){
     Serial.print("t: "+String(ciclo_ISR));
     Serial.print("\tmot_pid: "+String(roll_PID)+"\teri: "+String(roll_pid_i));
     //Serial.print("\tax: "+String(acc_x)+"\tay: "+String(acc_y)+"\taz: "+String(acc_z));
-    Serial.print("\tth: "+String(roll_desired_angle)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(angle_yaw_output));
+    Serial.print("\tth: "+String(throttle_desired)+"\tr:"+String(angle_roll_output)+"\tp:"+String(angle_pitch_output)+"\ty:"+String(angle_yaw_output));
     //Serial.print("\trd: "+String(angle_roll_output_dot)+"\tpd: "+String(angle_pitch_output_dot)+"\tyd: "+String(angle_yaw_output_dot));
     Serial.print("\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4));
     //Serial.print("\tyd: "+String(angle_yaw_output_dot)+"\tpid_d: "+String(yaw_dot_pid_p)+"\tdes_d: "+String(yaw_dot_desired_angle));
@@ -300,8 +260,8 @@ void IRAM_ATTR onTimer(void* arg) {
 
   if(writeInRam && salta){ //write in file.txt
     dati[dati_i] = "t: "+String(Time/1000 - startTime)+
-                  "\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
-                  "\tr: "+String(angle_roll_output)+"\tp: "+String(angle_pitch_output)+"\tyd: "+String(angle_yaw_output_dot)+
+                  //"\tmot: "+String(motor_1)+"\t"+String(motor_2)+"\t"+String(motor_3)+"\t"+String(motor_4)+
+                  "\tr: "+String(angle_roll_output)+"\trd: "+String(angle_roll_output_dot)+"\tu_r: "+String(roll_PID)+
                   //"\tyd: "+String(angle_yaw_output_dot)+
                   //"\ty: "+String(angle_yaw_output)+//"\tdes_dot: "+String(yaw_dot_desired_angle)+"\tdot_pid_p: "+String(yaw_dot_pid_p)+
                   "\n";
@@ -315,25 +275,12 @@ void IRAM_ATTR onTimer(void* arg) {
 
 void setup() {
 
-  pinMode(PINMOT_1, OUTPUT);
-  pinMode(PINMOT_2, OUTPUT);
-  pinMode(PINMOT_3, OUTPUT);
-  pinMode(PINMOT_4, OUTPUT);
-  gpio_set_level((gpio_num_t)PINMOT_1, 1);
-  gpio_set_level((gpio_num_t)PINMOT_2, 1);
-  gpio_set_level((gpio_num_t)PINMOT_3, 1);
-  gpio_set_level((gpio_num_t)PINMOT_4, 1);
-
-  // Timer a 1 µs
-  /*timer = timerBegin(0, 80, true); // prescaler 80 -> 1 tick = 1 µs su core a 80MHz; su C3 controlla se 80 è corretto
-  timerAttachInterrupt(timer, &onTimer_pwm, true);
-  timerAlarmWrite(timer, 1, true); // ISR ogni 1 µs
-  timerAlarmEnable(timer);*/
+  init_pwm(PINMOT_1, PINMOT_2, PINMOT_3, PINMOT_4, freqHz, phase);
 
   pinMode(PINBAT, INPUT);
 
   Serial.begin(115200);
-  delay(2000);
+  delay(100);
 
   Wire.begin();
   Wire.setClock(400000);
@@ -343,7 +290,6 @@ void setup() {
   delay(10);
   mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_4); // +-4g
   mpu.CalibrateGyro(100);
-  //caricaOffset(true);
 
   filter.begin(500);
   
@@ -362,15 +308,6 @@ void setup() {
   initWebSocket();
   hostSite();
 
-  const esp_timer_create_args_t periodic_timer_pwm_args = {
-    .callback = &onTimer_pwm,        // Funzione da chiamare
-    .arg = NULL,
-    .dispatch_method = ESP_TIMER_TASK,
-    .name = "MyTimer_pwm"
-  };
-
-  esp_timer_create(&periodic_timer_pwm_args, &timer_pwm);
-  esp_timer_start_periodic(timer_pwm, 1);
 
   const esp_timer_create_args_t periodic_timer_args = {
     .callback = &onTimer,        // Funzione da chiamare

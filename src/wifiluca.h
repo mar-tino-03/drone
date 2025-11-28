@@ -22,15 +22,26 @@ void readFile(fs::FS &fs, const char * path);
 
 //_________________________________________________________________wifi
 void initWiFi() {
+  // Disconnette e pulisce configurazioni precedenti
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  delay(100);
+
+  // Imposta la modalità AP
   WiFi.mode(WIFI_AP);
 
-  WiFi.softAP(ssid, password);
-  
-  Serial.println("\nAccess Point avviato");
-  Serial.print("SSID: ");
-  Serial.println(ssid);
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.softAPIP());
+  // Configurazione più specifica: (SSID, Password, Canale, Nascosto, MaxConnessioni)
+  bool result = WiFi.softAP(ssid, password, 6, 0, 4);
+
+  if (!result) {
+    Serial.println("Fallimento avvio SoftAP!");
+  } else {
+    Serial.println("\nAccess Point avviato");
+    Serial.print("SSID: ");
+    Serial.println(ssid);
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.softAPIP());
+  }
   
   // ============= AGGIUNTO: Configurazione mDNS =============
   if (!MDNS.begin("drone")) {
