@@ -1,10 +1,8 @@
 #ifndef _WIFILUCA_H_
 #define _WIFILUCA_H_
 
-// ============= MODIFICATO: Credenziali per l'Access Point =============
-const char* ssid = "ESP32_Drone";           // Nome della rete WiFi creata dall'ESP32
-const char* password = "12345678";          // Password (minimo 8 caratteri)
-// ======================================================================
+const char* ssid = "ESP32_Drone";
+const char* password = "12345678";
 
 JSONVar parsed;
 
@@ -22,25 +20,19 @@ void writeFile(fs::FS &fs, const char * path, const char * message);
 void appendFile(fs::FS &fs, const char * path, const char * message);
 void readFile(fs::FS &fs, const char * path);
 
-// ============= MODIFICATO: Modalità Access Point =============
 //_________________________________________________________________wifi
 void initWiFi() {
-  WiFi.mode(WIFI_AP);  // Modalità Access Point invece di WIFI_STA
+  WiFi.mode(WIFI_AP);
 
-  // Configura IP locale SENZA gateway
-  IPAddress local_IP(192, 168, 4, 1);
-  IPAddress subnet(255, 255, 255, 0);
-  IPAddress gateway(0, 0, 0, 0);  // Gateway a 0.0.0.0 = nessuna connessione internet
-  
-  WiFi.softAPConfig(local_IP, gateway, subnet);
   WiFi.softAP(ssid, password);
   
   Serial.println("\nAccess Point avviato");
   Serial.print("SSID: ");
   Serial.println(ssid);
   Serial.print("IP Address: ");
-  Serial.println(WiFi.softAPIP());  // Mostra l'IP dell'AP (di solito 192.168.4.1)
-
+  Serial.println(WiFi.softAPIP());
+  
+  // ============= AGGIUNTO: Configurazione mDNS =============
   if (!MDNS.begin("drone")) {
     Serial.println("Errore nell'avvio mDNS!");
   } else {
@@ -48,8 +40,8 @@ void initWiFi() {
     Serial.println("Accedi alla pagina tramite: http://drone.local");
     MDNS.addService("http", "tcp", 80);  // Annuncia il servizio HTTP
   }
+  // =========================================================
 }
-// ==============================================================
 
 //_________________________________________________________________file sistem
 void initFS() {
